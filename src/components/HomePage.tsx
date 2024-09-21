@@ -1,7 +1,6 @@
-type Props = {onLogout: ()=>void};
+type Props = {onLogout: () => void};
 
 const HomePage = ({onLogout}: Props) => {
-
   return (
     <div>
       <h1>Hello World</h1>
