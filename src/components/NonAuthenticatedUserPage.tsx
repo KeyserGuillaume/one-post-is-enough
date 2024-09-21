@@ -21,11 +21,10 @@ const NonAuthenticatedUserPage = ({onAuthenticationSuccess}: Props) => {
   const handleResetSuccess = () =>
     setAuthenticationTab(AuthenticationTab.LOGIN);
 
-  const baseStyle =
-    'bg-white hover:bg-slate-50 hover:border-white rounded-lg focus:outline-none';
+  const baseStyle = 'hover:bg-slate-50 hover:border-white rounded-lg';
   const styles = new Map<string, string>();
   for (const key of Object.values(AuthenticationTab)) {
-    styles.set(key, baseStyle);
+    styles.set(key, baseStyle + ' bg-white');
   }
   styles.set(authenticationTab, baseStyle + ' bg-orange-100 text-orange-500');
 
