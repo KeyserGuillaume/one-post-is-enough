@@ -79,7 +79,7 @@ const SignUpPage = ({ onSignUpSuccess }: Props) => {
                     placeholder="Verification code, please check your emails"
                     required
                 />}
-            <button type="submit">{!hasSignedUp ? "Sign up" : "Verify code"}</button>
+            <button className="w-80 mt-2 hover:border-white" type="submit">{!hasSignedUp ? "Sign up" : "Verify code"}</button>
         </form>
     );
 }

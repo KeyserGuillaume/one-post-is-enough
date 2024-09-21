@@ -36,7 +36,7 @@ const LoginPage = ({ onAuthenticationSuccess }: Props) => {
                     placeholder="Password"
                     required
                 />
-                <button className="w-80 mt-2" type="submit">Sign In</button>
+                <button className="w-80 mt-2 hover:border-white" type="submit">Sign In</button>
         </form>
     );
 }
