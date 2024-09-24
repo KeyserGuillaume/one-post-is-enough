@@ -1,7 +1,8 @@
-import {ChangeEvent, useState} from 'react';
+import {ChangeEvent, useEffect, useState} from 'react';
 import config from '../aws-config.json';
 import {getToken} from '../libs/auth-service';
 import {isFileJpg} from '../libs/utils';
+import Header from './Header';
 
 type Props = {onLogout: () => void};
 
@@ -16,7 +17,6 @@ const fetchTheOnePost = async (): Promise<string | null> => {
   const response = await fetch(config.apiEndpointUrl, {
     headers,
   });
-  console.log(response);
   if (response.status === 200) {
     const blob = await response.blob();
     const url = URL.createObjectURL(blob);
@@ -66,10 +66,19 @@ const HomePage = ({onLogout}: Props) => {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [file, setFile] = useState<null | string>(null);
 
-  const handleClick = async () => {
-    const url = await fetchTheOnePost();
-    setImageUrl(url);
-  };
+  useEffect(() => {
+    let ignore = false;
+    async function startFetching() {
+      const url = await fetchTheOnePost();
+      if (!ignore) {
+        setImageUrl(url);
+      }
+    }
+    startFetching();
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const handleChange = async (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files === null) {
@@ -83,19 +92,19 @@ const HomePage = ({onLogout}: Props) => {
 
   return (
     <div>
-      <h1>Hello World</h1>
-      <p>You are authenticated !</p>
-      <button onClick={handleClick}> Test api </button>
-      <button onClick={onLogout}>Logout</button>
-      {imageUrl && (
-        <img
-          src={imageUrl}
-          alt="This is the image selected among everything that was posted today"
-        />
-      )}
-      <h2>Add Image:</h2>
-      <input type="file" onChange={handleChange} accept="image/jpg" />
-      {file && <img src={file} />}
+      <Header onLogout={onLogout} />
+      <div className="w-dvw">
+        {imageUrl && (
+          <img
+            className="max-w-full"
+            src={imageUrl}
+            alt="This is the image selected among everything that was posted today"
+          />
+        )}
+        <h2>Add Image:</h2>
+        <input type="file" onChange={handleChange} accept="image/jpg" />
+        {file && <img src={file} />}
+      </div>
     </div>
   );
 };
