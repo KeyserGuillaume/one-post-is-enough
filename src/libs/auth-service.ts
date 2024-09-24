@@ -4,6 +4,7 @@ import {
   confirmSignUp,
   getCurrentUser,
   signOut,
+  fetchAuthSession,
 } from 'aws-amplify/auth';
 
 export const signUp = async (
@@ -59,6 +60,20 @@ export const isSigningInNecessary = async (): Promise<boolean> => {
   } catch (error: unknown) {
     console.log('You are not authenticated');
     return false;
+  }
+};
+
+export const getToken = async (): Promise<string | null> => {
+  try {
+    const session = await fetchAuthSession();
+    // Using the id token here is considered bad practice, in theory it is safer to
+    // use session tokens for API calls (as far as I understand)
+    // but the session token doesn't work for the cognito authorizer
+    // it would require using token scopes : expensive and complicated apparently
+    return session.tokens?.idToken?.toString() ?? null;
+  } catch {
+    console.log('could not get token, is user authenticated ?');
+    return null;
   }
 };
 

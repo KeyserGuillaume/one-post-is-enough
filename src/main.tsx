@@ -3,7 +3,7 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import {Amplify} from 'aws-amplify';
-import config from './cognito-config.json';
+import config from './aws-config.json';
 
 Amplify.configure({
   Auth: {
