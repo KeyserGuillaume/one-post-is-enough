@@ -3,6 +3,7 @@ import config from '../aws-config.json';
 import {getToken} from '../libs/auth-service';
 import {isFileJpg} from '../libs/utils';
 import Header from './Header';
+import SettingsPage from './SettingsPage';
 
 type Props = {onLogout: () => void};
 
@@ -63,6 +64,7 @@ const uploadThePost = async (file: File): Promise<boolean> => {
 };
 
 const HomePage = ({onLogout}: Props) => {
+  const [displaySettings, setDisplaySettings] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [file, setFile] = useState<null | string>(null);
 
@@ -90,9 +92,12 @@ const HomePage = ({onLogout}: Props) => {
     }
   };
 
-  return (
+  const homePage = (
     <div className="w-full flex flex-col content-center flex-wrap">
-      <Header onLogout={onLogout} />
+      <Header
+        onLogout={onLogout}
+        onClickSettings={() => setDisplaySettings(true)}
+      />
       <div className="max-w-5xl flex flex-col flex-wrap mx-auto mt-10">
         <p className="max-w-prose mx-auto">
           Please find below the post for today, as well as the message of
@@ -133,6 +138,15 @@ const HomePage = ({onLogout}: Props) => {
         {file && <img src={file} />}
       </div>
     </div>
+  );
+
+  return displaySettings ? (
+    <SettingsPage
+      onLogout={onLogout}
+      onExit={() => setDisplaySettings(false)}
+    />
+  ) : (
+    homePage
   );
 };
 

@@ -5,6 +5,8 @@ import {
   getCurrentUser,
   signOut,
   fetchAuthSession,
+  deleteUser,
+  fetchUserAttributes,
 } from 'aws-amplify/auth';
 
 export const signUp = async (
@@ -78,6 +80,30 @@ export const getToken = async (): Promise<string | null> => {
 };
 
 export const logOut = async () => {
-  await signOut();
+  try {
+    await signOut();
+  } catch {}
   return;
+};
+
+export const handleDeleteUser = async () => {
+  try {
+    await deleteUser();
+  } catch (error) {
+    console.log(error);
+  }
+};
+
+export const getUserAttributes = async (): Promise<{
+  name?: string;
+  email?: string;
+}> => {
+  try {
+    const {name, email} = await fetchUserAttributes();
+    return {name, email};
+  } catch (error) {
+    console.log('Failed to fetch user attributes');
+    console.log(error);
+    return {};
+  }
 };
