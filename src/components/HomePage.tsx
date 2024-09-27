@@ -27,6 +27,28 @@ const fetchTheOnePost = async (): Promise<string | null> => {
   }
 };
 
+const fetchUserPost = async (): Promise<string | null> => {
+  const token = await getToken();
+  if (token === null) {
+    return null;
+  }
+  const headers = new Headers();
+  headers.append('Authorization', token);
+  headers.append('Accept', 'image/jpg');
+  const response = await fetch(config.apiEndpointUrl + '/user-post', {
+    headers,
+  });
+  if (response.status === 200) {
+    const responseText = await response.text();
+    const base64Decoded = await fetch(`data:image/jpeg;base64,${responseText}`);
+    const blob2 = await base64Decoded.blob();
+    const url = URL.createObjectURL(blob2);
+    return url;
+  } else {
+    return null;
+  }
+};
+
 const uploadThePost = async (file: File): Promise<boolean> => {
   const token = await getToken();
   if (token === null) {
@@ -66,6 +88,7 @@ const uploadThePost = async (file: File): Promise<boolean> => {
 const HomePage = ({onLogout}: Props) => {
   const [displaySettings, setDisplaySettings] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [userPostImageUrl, setUserPostImageUrl] = useState<string | null>(null);
   const [file, setFile] = useState<null | string>(null);
 
   useEffect(() => {
@@ -74,6 +97,20 @@ const HomePage = ({onLogout}: Props) => {
       const url = await fetchTheOnePost();
       if (!ignore) {
         setImageUrl(url);
+      }
+    }
+    startFetching();
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let ignore = false;
+    async function startFetching() {
+      const url = await fetchUserPost();
+      if (!ignore) {
+        setUserPostImageUrl(url);
       }
     }
     startFetching();
@@ -107,7 +144,7 @@ const HomePage = ({onLogout}: Props) => {
         <div className="p-2 border-2 rounded-lg border-orange-100 mx-auto">
           <blockquote className="max-w-prose">No message yet</blockquote>
         </div>
-        <div>
+        <div className="mx-auto">
           {imageUrl && (
             <img
               className="mt-3 max-w-full lg:max-w-[1024px] "
@@ -124,18 +161,29 @@ const HomePage = ({onLogout}: Props) => {
           posts will be permanently deleted. This process preserves the precious
           time of all users of One Post Is Enough.
         </p>
-        <p className="max-w-prose mx-auto">
+        <p className="max-w-prose mx-auto mt-2">
           Uploaded posts should meet the following rules : no violence or
           nudity.
         </p>
-        <h2 className="mx-auto mt-4">Add Image:</h2>
-        <input
-          className="mx-auto mt-2"
-          type="file"
-          onChange={handleChange}
-          accept="image/jpg"
-        />
+        {file === null && userPostImageUrl === null && (
+          <>
+            <h2 className="mx-auto mt-4">Add Image:</h2>
+            <input
+              className="mx-auto mt-2"
+              type="file"
+              onChange={handleChange}
+              accept="image/jpg"
+            />
+          </>
+        )}
         {file && <img src={file} />}
+        {userPostImageUrl && (
+          <img
+            className="mt-3 max-w-full lg:max-w-[1024px] mx-auto"
+            src={userPostImageUrl}
+            alt="This is the post that you've uploaded today"
+          />
+        )}
       </div>
     </div>
   );
