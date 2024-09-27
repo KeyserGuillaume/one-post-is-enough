@@ -1,11 +1,10 @@
-import {ChangeEvent, useState} from 'react';
+import {ChangeEvent, useEffect, useState} from 'react';
 import config from '../aws-config.json';
 import {getToken} from '../libs/auth-service';
 import {isFileJpg} from '../libs/utils';
 import Header from './Header';
 import SettingsPage from './SettingsPage';
 import {useTheOnePost} from '../hooks/useTheOnePost';
-import {useUserPost} from '../hooks/useUserPost';
 
 type Props = {onLogout: () => void};
 
@@ -45,12 +44,49 @@ const uploadThePost = async (file: File): Promise<boolean> => {
   return false;
 };
 
+const fetchUserPost = async (): Promise<string | null> => {
+  const token = await getToken();
+  if (token === null) {
+    return null;
+  }
+  const headers = new Headers();
+  headers.append('Authorization', token);
+  headers.append('Accept', 'image/jpg');
+  const response = await fetch(config.apiEndpointUrl + '/user-post', {
+    headers,
+  });
+  if (response.status === 200) {
+    const responseText = await response.text();
+    const base64Decoded = await fetch(`data:image/jpeg;base64,${responseText}`);
+    const blob2 = await base64Decoded.blob();
+    const url = URL.createObjectURL(blob2);
+    return url;
+  } else {
+    return null;
+  }
+};
+
+const deleteUserPost = async () => {
+  const token = await getToken();
+  if (token === null) {
+    return false;
+  }
+  const headers = new Headers();
+  headers.append('Authorization', token);
+  const response = await fetch(config.apiEndpointUrl, {
+    method: 'DELETE',
+    headers,
+  });
+  if (response.status === 200) {
+    console.log('User post was deleted');
+  }
+};
+
 const HomePage = ({onLogout}: Props) => {
   const [displaySettings, setDisplaySettings] = useState(false);
-  const [file, setFile] = useState<null | string>(null);
+  const [uploadedPost, setUploadedPost] = useState<null | string>(null);
 
   const imageUrl = useTheOnePost();
-  const userPostImageUrl = useUserPost();
 
   const handleChange = async (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files === null) {
@@ -58,8 +94,27 @@ const HomePage = ({onLogout}: Props) => {
     }
     const success = await uploadThePost(e.target.files[0]);
     if (success) {
-      setFile(URL.createObjectURL(e.target.files[0].slice()));
+      setUploadedPost(URL.createObjectURL(e.target.files[0].slice()));
     }
+  };
+
+  useEffect(() => {
+    let ignore = false;
+    async function startFetching() {
+      const url = await fetchUserPost();
+      if (!ignore) {
+        setUploadedPost(url);
+      }
+    }
+    startFetching();
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  const handleDeletePost = () => {
+    setUploadedPost(null);
+    deleteUserPost();
   };
 
   const homePage = (
@@ -98,7 +153,7 @@ const HomePage = ({onLogout}: Props) => {
           Uploaded posts should meet the following rules : no violence or
           nudity.
         </p>
-        {file === null && userPostImageUrl === null && (
+        {uploadedPost === null && (
           <>
             <h2 className="mx-auto mt-4">Add Image:</h2>
             <input
@@ -109,13 +164,17 @@ const HomePage = ({onLogout}: Props) => {
             />
           </>
         )}
-        {file && <img src={file} />}
-        {userPostImageUrl && (
-          <img
-            className="mt-3 max-w-full lg:max-w-[1024px] mx-auto"
-            src={userPostImageUrl}
-            alt="This is the post that you've uploaded today"
-          />
+        {uploadedPost && (
+          <>
+            <img
+              className="mt-3 max-w-full lg:max-w-[1024px] mx-auto"
+              src={uploadedPost}
+              alt="This is the post that you've uploaded today"
+            />
+            <button className="mx-auto" onClick={handleDeletePost}>
+              Delete post
+            </button>
+          </>
         )}
       </div>
     </div>
