@@ -1,53 +1,13 @@
-import {ChangeEvent, useEffect, useState} from 'react';
+import {ChangeEvent, useState} from 'react';
 import config from '../aws-config.json';
 import {getToken} from '../libs/auth-service';
 import {isFileJpg} from '../libs/utils';
 import Header from './Header';
 import SettingsPage from './SettingsPage';
+import {useTheOnePost} from '../hooks/useTheOnePost';
+import {useUserPost} from '../hooks/useUserPost';
 
 type Props = {onLogout: () => void};
-
-const fetchTheOnePost = async (): Promise<string | null> => {
-  const token = await getToken();
-  if (token === null) {
-    return null;
-  }
-  const headers = new Headers();
-  headers.append('Authorization', token);
-  headers.append('Accept', 'image/jpg');
-  const response = await fetch(config.apiEndpointUrl, {
-    headers,
-  });
-  if (response.status === 200) {
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    return url;
-  } else {
-    return null;
-  }
-};
-
-const fetchUserPost = async (): Promise<string | null> => {
-  const token = await getToken();
-  if (token === null) {
-    return null;
-  }
-  const headers = new Headers();
-  headers.append('Authorization', token);
-  headers.append('Accept', 'image/jpg');
-  const response = await fetch(config.apiEndpointUrl + '/user-post', {
-    headers,
-  });
-  if (response.status === 200) {
-    const responseText = await response.text();
-    const base64Decoded = await fetch(`data:image/jpeg;base64,${responseText}`);
-    const blob2 = await base64Decoded.blob();
-    const url = URL.createObjectURL(blob2);
-    return url;
-  } else {
-    return null;
-  }
-};
 
 const uploadThePost = async (file: File): Promise<boolean> => {
   const token = await getToken();
@@ -87,37 +47,10 @@ const uploadThePost = async (file: File): Promise<boolean> => {
 
 const HomePage = ({onLogout}: Props) => {
   const [displaySettings, setDisplaySettings] = useState(false);
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [userPostImageUrl, setUserPostImageUrl] = useState<string | null>(null);
   const [file, setFile] = useState<null | string>(null);
 
-  useEffect(() => {
-    let ignore = false;
-    async function startFetching() {
-      const url = await fetchTheOnePost();
-      if (!ignore) {
-        setImageUrl(url);
-      }
-    }
-    startFetching();
-    return () => {
-      ignore = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    let ignore = false;
-    async function startFetching() {
-      const url = await fetchUserPost();
-      if (!ignore) {
-        setUserPostImageUrl(url);
-      }
-    }
-    startFetching();
-    return () => {
-      ignore = true;
-    };
-  }, []);
+  const imageUrl = useTheOnePost();
+  const userPostImageUrl = useUserPost();
 
   const handleChange = async (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files === null) {
