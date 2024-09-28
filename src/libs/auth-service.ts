@@ -55,9 +55,8 @@ export const signIn = async (
 
 export const isSigningInNecessary = async (): Promise<boolean> => {
   try {
-    const {username, userId, signInDetails} = await getCurrentUser();
+    await getCurrentUser();
     console.log('You are already signed in');
-    console.log(username, userId, signInDetails);
     return true;
   } catch (error: unknown) {
     console.log('You are not authenticated');
