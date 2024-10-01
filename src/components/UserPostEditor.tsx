@@ -125,7 +125,7 @@ const UserPostEditor = () => {
         be permanently deleted. This process preserves the precious time of all
         users of One Post Is Enough.
       </p>
-      <p className="max-w-prose mx-auto mt-2">
+      <p className="max-w-prose mx-auto mt-4">
         Uploaded posts should meet the following rules : no violence or nudity.
       </p>
       {uploadedPost === null && (

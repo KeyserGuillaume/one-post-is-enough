@@ -12,7 +12,7 @@ const HomePage = ({onLogout}: Props) => {
   const imageUrl = useTheOnePost();
 
   const homePage = (
-    <div className="w-full flex flex-col content-center flex-wrap">
+    <div className="w-full flex flex-col content-center flex-wrap text-center">
       <Header
         onLogout={onLogout}
         onClickSettings={() => setDisplaySettings(true)}
