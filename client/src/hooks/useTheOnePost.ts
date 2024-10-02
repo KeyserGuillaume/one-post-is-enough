@@ -12,8 +12,8 @@ const fetchTheOnePost = async (): Promise<string | null> => {
   headers.append('Accept', 'image/jpg');
   const response = await fetch(config.apiEndpointUrl, {
     headers,
-  });
-  if (response.status === 200) {
+  }).catch(e => console.log(e));
+  if (response && response.status === 200) {
     const blob = await response.blob();
     const url = URL.createObjectURL(blob);
     return url;
