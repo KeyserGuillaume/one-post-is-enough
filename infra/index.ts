@@ -83,16 +83,14 @@ const api = new aws.apigateway.RestApi("one-post-is-enough", {
 });
 
 // put everything related to the api and pass this via dependOn to deployment
-const apiDeploymentTriggers: { [x: string]: pulumi.Input<string> } = {
-  apiId: api.id,
-};
+const apiDeploymentTriggers: pulumi.Input<string>[] = [api.id];
 const authorizer = new aws.apigateway.Authorizer("cognito-authorizer", {
   type: "COGNITO_USER_POOLS",
   restApi: api.id,
   providerArns: [userPool.arn],
   identitySource: "method.request.header.Authorization",
 });
-apiDeploymentTriggers["authorizer"] = authorizer.id;
+apiDeploymentTriggers.push(authorizer.id);
 
 const rootOptionsMethod = new aws.apigateway.Method("routeOptionsMethod", {
   restApi: api.id,
@@ -100,9 +98,9 @@ const rootOptionsMethod = new aws.apigateway.Method("routeOptionsMethod", {
   httpMethod: "OPTIONS",
   authorization: "NONE",
 });
-apiDeploymentTriggers["rootOptionsMethod"] = rootOptionsMethod.id;
+apiDeploymentTriggers.push(rootOptionsMethod.id);
 
-apiDeploymentTriggers["rootOptionsIntegration"] =
+apiDeploymentTriggers.push(
   new aws.apigateway.Integration("rootOptionsIntegration", {
     httpMethod: rootOptionsMethod.httpMethod,
     integrationHttpMethod: "OPTIONS",
@@ -112,7 +110,8 @@ apiDeploymentTriggers["rootOptionsIntegration"] =
     requestTemplates: {
       "application/json": '{"statusCode": 200}',
     },
-  }).id;
+  }).id
+);
 
 const rootOptionsMethodResponse = new aws.apigateway.MethodResponse(
   "rootOptionsMethodResponse",
@@ -131,10 +130,9 @@ const rootOptionsMethodResponse = new aws.apigateway.MethodResponse(
     },
   }
 );
-apiDeploymentTriggers["rootOptionsMethodResponse"] =
-  rootOptionsMethodResponse.id;
+apiDeploymentTriggers.push(rootOptionsMethodResponse.id);
 
-apiDeploymentTriggers["rootOptionsIntegrationResponse"] =
+apiDeploymentTriggers.push(
   new aws.apigateway.IntegrationResponse("rootOptionsIntegrationResponse", {
     restApi: api.id,
     resourceId: api.rootResourceId,
@@ -147,7 +145,8 @@ apiDeploymentTriggers["rootOptionsIntegrationResponse"] =
       "method.response.header.Access-Control-Allow-Headers":
         "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
     },
-  }).id;
+  }).id
+);
 
 const rootGetMethod = new aws.apigateway.Method("routeGetMethod", {
   restApi: api.id,
@@ -156,11 +155,10 @@ const rootGetMethod = new aws.apigateway.Method("routeGetMethod", {
   authorization: "COGNITO_USER_POOLS",
   authorizerId: authorizer.id,
 });
-apiDeploymentTriggers["rootGetMethod"] = rootGetMethod.id;
+apiDeploymentTriggers.push(rootGetMethod.id);
 
-apiDeploymentTriggers["rootGetIntegration"] = new aws.apigateway.Integration(
-  "rootGetIntegration",
-  {
+apiDeploymentTriggers.push(
+  new aws.apigateway.Integration("rootGetIntegration", {
     httpMethod: rootGetMethod.httpMethod,
     integrationHttpMethod: "GET",
     resourceId: api.rootResourceId,
@@ -168,8 +166,8 @@ apiDeploymentTriggers["rootGetIntegration"] = new aws.apigateway.Integration(
     type: "AWS",
     credentials: apiRole.arn,
     uri: pulumi.interpolate`arn:aws:apigateway:eu-west-3:s3:path/${theOnePostBucket.bucket}/image.jpg`,
-  }
-).id;
+  }).id
+);
 
 const rootGetResponse = new aws.apigateway.MethodResponse("rootGetResponse", {
   restApi: api.id,
@@ -180,9 +178,9 @@ const rootGetResponse = new aws.apigateway.MethodResponse("rootGetResponse", {
     "method.response.header.Access-Control-Allow-Origin": true,
   },
 });
-apiDeploymentTriggers["rootGetResponse"] = rootGetResponse.id;
+apiDeploymentTriggers.push(rootGetResponse.id);
 
-apiDeploymentTriggers["rootGetIntegrationResponse"] =
+apiDeploymentTriggers.push(
   new aws.apigateway.IntegrationResponse("rootGetIntegrationResponse", {
     restApi: api.id,
     resourceId: api.rootResourceId,
@@ -191,11 +189,16 @@ apiDeploymentTriggers["rootGetIntegrationResponse"] =
     responseParameters: {
       "method.response.header.Access-Control-Allow-Origin": "'*'",
     },
-  }).id;
+  }).id
+);
 
+const triggers: { [x: string]: pulumi.Input<string> } = {};
+apiDeploymentTriggers.forEach(
+  (pulumiInput, index) => (triggers[index] = pulumiInput)
+);
 const deployment = new aws.apigateway.Deployment("api-deployment", {
   restApi: api.id,
-  triggers: apiDeploymentTriggers,
+  triggers,
 });
 const stage = new aws.apigateway.Stage(
   "api-stage",
