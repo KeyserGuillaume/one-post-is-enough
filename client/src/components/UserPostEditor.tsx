@@ -23,7 +23,7 @@ const uploadThePost = async (file: File): Promise<boolean> => {
     return false;
   }
 
-  const response = await fetch(config.apiEndpointUrl, {
+  const response = await fetch(config.apiEndpointUrl + '/user-post', {
     method: 'POST',
     headers,
     body: file,

@@ -38,7 +38,7 @@ const userPostsBucket = new aws.s3.BucketV2(
   { protect: true }
 );
 
-createApi(userPool, theOnePostBucket);
+createApi(userPool, theOnePostBucket, userPostsBucket);
 
 export const userPoolId = userPool.id;
 export const userPoolClientId = userPoolClient.id;

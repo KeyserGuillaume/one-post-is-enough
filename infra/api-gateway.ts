@@ -1,37 +1,45 @@
 import * as aws from "@pulumi/aws";
 import * as pulumi from "@pulumi/pulumi";
+import { getPostGetterHandler } from "./lambda-functions/get-user-post";
+import { getPostSetterHandler } from "./lambda-functions/post-uploader";
 
-function createRootOptionsMethod(
+function createOptionsMethod(
   api: aws.apigateway.RestApi,
+  resourceId: pulumi.Output<string>,
+  prefix: string, // necessary to ensure unique resource logical names
   apiDeploymentTriggers: pulumi.Input<string>[]
 ) {
-  const rootOptionsMethod = new aws.apigateway.Method("routeOptionsMethod", {
+  const optionsMethod = new aws.apigateway.Method(`${prefix}OptionsMethod`, {
     restApi: api.id,
-    resourceId: api.rootResourceId,
+    resourceId,
     httpMethod: "OPTIONS",
     authorization: "NONE",
   });
-  apiDeploymentTriggers.push(rootOptionsMethod.id);
+  apiDeploymentTriggers.push(optionsMethod.id);
 
-  apiDeploymentTriggers.push(
-    new aws.apigateway.Integration("rootOptionsIntegration", {
-      httpMethod: rootOptionsMethod.httpMethod,
+  const integration = new aws.apigateway.Integration(
+    `${prefix}OptionsIntegration`,
+    {
+      httpMethod: optionsMethod.httpMethod,
       integrationHttpMethod: "OPTIONS",
-      resourceId: api.rootResourceId,
+      resourceId,
       restApi: api.id,
       type: "MOCK",
       requestTemplates: {
         "application/json": '{"statusCode": 200}',
       },
-    }).id
+    },
+    // a bug in the aws provider : integrationHttpMethod is overwritten with empty value
+    { ignoreChanges: ["integrationHttpMethod"] }
   );
+  apiDeploymentTriggers.push(integration.id);
 
-  const rootOptionsMethodResponse = new aws.apigateway.MethodResponse(
-    "rootOptionsMethodResponse",
+  const optionsMethodResponse = new aws.apigateway.MethodResponse(
+    `${prefix}OptionsMethodResponse`,
     {
       restApi: api.id,
-      resourceId: api.rootResourceId,
-      httpMethod: rootOptionsMethod.httpMethod,
+      resourceId,
+      httpMethod: optionsMethod.httpMethod,
       statusCode: "200",
       responseModels: {
         "application/json": "Empty",
@@ -43,22 +51,26 @@ function createRootOptionsMethod(
       },
     }
   );
-  apiDeploymentTriggers.push(rootOptionsMethodResponse.id);
+  apiDeploymentTriggers.push(optionsMethodResponse.id);
 
   apiDeploymentTriggers.push(
-    new aws.apigateway.IntegrationResponse("rootOptionsIntegrationResponse", {
-      restApi: api.id,
-      resourceId: api.rootResourceId,
-      httpMethod: rootOptionsMethod.httpMethod,
-      statusCode: rootOptionsMethodResponse.statusCode,
-      responseParameters: {
-        "method.response.header.Access-Control-Allow-Origin": "'*'",
-        "method.response.header.Access-Control-Allow-Methods":
-          "'DELETE,GET,OPTIONS,POST'",
-        "method.response.header.Access-Control-Allow-Headers":
-          "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+    new aws.apigateway.IntegrationResponse(
+      `${prefix}OptionsIntegrationResponse`,
+      {
+        restApi: api.id,
+        resourceId: resourceId,
+        httpMethod: optionsMethod.httpMethod,
+        statusCode: optionsMethodResponse.statusCode,
+        responseParameters: {
+          "method.response.header.Access-Control-Allow-Origin": "'*'",
+          "method.response.header.Access-Control-Allow-Methods":
+            "'DELETE,GET,OPTIONS,POST'",
+          "method.response.header.Access-Control-Allow-Headers":
+            "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
+        },
       },
-    }).id
+      { dependsOn: [integration] }
+    ).id
   );
 }
 
@@ -135,31 +147,136 @@ function createRootGetMethod(
   );
 }
 
+function createUserPostGetMethod(
+  api: aws.apigateway.RestApi,
+  apiUserPostResource: aws.apigateway.Resource,
+  apiDeploymentTriggers: pulumi.Input<string>[],
+  authorizer: aws.apigateway.Authorizer,
+  userPostsBucket: aws.s3.BucketV2,
+  lambdaRole: aws.iam.Role
+) {
+  const lambdaFunction = getPostGetterHandler(userPostsBucket, lambdaRole);
+
+  const userPostGetMethod = new aws.apigateway.Method("userPostGetMethod", {
+    restApi: api.id,
+    resourceId: apiUserPostResource.id,
+    httpMethod: "GET",
+    authorization: "COGNITO_USER_POOLS",
+    authorizerId: authorizer.id,
+  });
+  apiDeploymentTriggers.push(userPostGetMethod.id);
+
+  new aws.lambda.Permission("apiGatewayGetUserPostPermission", {
+    action: "lambda:InvokeFunction",
+    function: lambdaFunction.arn,
+    principal: "apigateway.amazonaws.com",
+    sourceArn: pulumi.interpolate`${api.executionArn}/*/*`,
+  });
+
+  apiDeploymentTriggers.push(
+    new aws.apigateway.Integration("userPostGetIntegration", {
+      httpMethod: userPostGetMethod.httpMethod,
+      integrationHttpMethod: "POST",
+      resourceId: apiUserPostResource.id,
+      restApi: api.id,
+      type: "AWS_PROXY",
+      uri: lambdaFunction.invokeArn,
+    }).id
+  );
+
+  apiDeploymentTriggers.push(
+    new aws.apigateway.MethodResponse("userPostGetResponse", {
+      restApi: api.id,
+      resourceId: apiUserPostResource.id,
+      httpMethod: userPostGetMethod.httpMethod,
+      statusCode: "200",
+      responseParameters: {
+        "method.response.header.Access-Control-Allow-Origin": true,
+      },
+    }).id
+  );
+}
+
+function createUserPostPostMethod(
+  api: aws.apigateway.RestApi,
+  apiUserPostResource: aws.apigateway.Resource,
+  apiDeploymentTriggers: pulumi.Input<string>[],
+  authorizer: aws.apigateway.Authorizer,
+  userPostsBucket: aws.s3.BucketV2,
+  lambdaRole: aws.iam.Role
+) {
+  const lambdaFunction = getPostSetterHandler(userPostsBucket, lambdaRole);
+
+  const userPostPostMethod = new aws.apigateway.Method("userPostPostMethod", {
+    restApi: api.id,
+    resourceId: apiUserPostResource.id,
+    httpMethod: "POST",
+    authorization: "COGNITO_USER_POOLS",
+    authorizerId: authorizer.id,
+  });
+  apiDeploymentTriggers.push(userPostPostMethod.id);
+
+  new aws.lambda.Permission("apiGatewaySetUserPostPermission", {
+    action: "lambda:InvokeFunction",
+    function: lambdaFunction.arn,
+    principal: "apigateway.amazonaws.com",
+    sourceArn: pulumi.interpolate`${api.executionArn}/*/*`,
+  });
+
+  apiDeploymentTriggers.push(
+    new aws.apigateway.Integration("userPostPostIntegration", {
+      httpMethod: userPostPostMethod.httpMethod,
+      integrationHttpMethod: "POST",
+      resourceId: apiUserPostResource.id,
+      restApi: api.id,
+      type: "AWS_PROXY",
+      uri: lambdaFunction.invokeArn,
+    }).id
+  );
+
+  apiDeploymentTriggers.push(
+    new aws.apigateway.MethodResponse("userPostPostResponse", {
+      restApi: api.id,
+      resourceId: apiUserPostResource.id,
+      httpMethod: userPostPostMethod.httpMethod,
+      statusCode: "200",
+      responseParameters: {
+        "method.response.header.Access-Control-Allow-Origin": true,
+      },
+    }).id
+  );
+}
+
 export function createApi(
   userPool: aws.cognito.UserPool,
-  theOnePostBucket: aws.s3.BucketV2
+  theOnePostBucket: aws.s3.BucketV2,
+  userPostsBucket: aws.s3.BucketV2
 ) {
-  const lambdaRole = new aws.iam.Role(`one-post-is-enough-lambda-role`, {
-    assumeRolePolicy: aws.iam.assumeRolePolicyForPrincipal({
-      Service: "lambda.amazonaws.com",
-    }),
+  const api = new aws.apigateway.RestApi("one-post-is-enough", {
+    binaryMediaTypes: ["image/jpg", "image/jpeg"],
   });
-  new aws.iam.RolePolicy(`one-post-is-enough-lambda-role-policy`, {
-    role: lambdaRole,
-    policy: {
+
+  const lambdaRole = new aws.iam.Role("getUserPostRole", {
+    assumeRolePolicy: {
       Version: "2012-10-17",
       Statement: [
         {
-          Action: ["s3:*"],
-          Resource: "*",
+          Action: "sts:AssumeRole",
+          Principal: {
+            Service: "lambda.amazonaws.com",
+          },
           Effect: "Allow",
         },
       ],
     },
   });
-
-  const api = new aws.apigateway.RestApi("one-post-is-enough", {
-    binaryMediaTypes: ["image/jpg", "image/jpeg"],
+  new aws.iam.RolePolicyAttachment("getUserPostRolePolicy", {
+    role: lambdaRole.name,
+    policyArn: aws.iam.ManagedPolicies.AWSLambdaBasicExecutionRole,
+  });
+  new aws.iam.RolePolicyAttachment("getUserPostRolePolicyBis", {
+    role: lambdaRole.name,
+    policyArn: aws.iam.ManagedPolicies.AmazonS3FullAccess,
   });
 
   // put everything related to the api and pass this via triggers to deployment
@@ -172,8 +289,39 @@ export function createApi(
   });
   apiDeploymentTriggers.push(authorizer.id);
 
-  createRootOptionsMethod(api, apiDeploymentTriggers);
+  createOptionsMethod(api, api.rootResourceId, "root", apiDeploymentTriggers);
   createRootGetMethod(api, apiDeploymentTriggers, authorizer, theOnePostBucket);
+
+  const apiUserPostResource = new aws.apigateway.Resource("userPostResource", {
+    restApi: api.id,
+    parentId: api.rootResourceId,
+    pathPart: "user-post",
+  });
+  apiDeploymentTriggers.push(apiUserPostResource.id);
+
+  createOptionsMethod(
+    api,
+    apiUserPostResource.id,
+    "userPost",
+    apiDeploymentTriggers
+  );
+
+  createUserPostGetMethod(
+    api,
+    apiUserPostResource,
+    apiDeploymentTriggers,
+    authorizer,
+    userPostsBucket,
+    lambdaRole
+  );
+  createUserPostPostMethod(
+    api,
+    apiUserPostResource,
+    apiDeploymentTriggers,
+    authorizer,
+    userPostsBucket,
+    lambdaRole
+  );
 
   const triggers: { [x: string]: pulumi.Input<string> } = {};
   apiDeploymentTriggers.forEach(
@@ -182,23 +330,6 @@ export function createApi(
   const deployment = new aws.apigateway.Deployment("api-deployment", {
     restApi: api.id,
     triggers,
-  });
-  const stage = new aws.apigateway.Stage(
-    "api-stage",
-    {
-      stageName: "client",
-      restApi: api.id,
-      deployment,
-    },
-    {
-      dependsOn: [deployment],
-      replaceOnChanges: ["deployment"],
-    }
-  );
-
-  const apiUserPostResource = new aws.apigateway.Resource("userPostResource", {
-    restApi: api.id,
-    parentId: api.rootResourceId,
-    pathPart: "user-post",
+    stageName: "client",
   });
 }
