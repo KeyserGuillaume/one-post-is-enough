@@ -304,33 +304,11 @@ function createUserPostDeleteMethod(
 export function createApi(
   userPool: aws.cognito.UserPool,
   theOnePostBucket: aws.s3.BucketV2,
-  userPostsBucket: aws.s3.BucketV2
+  userPostsBucket: aws.s3.BucketV2,
+  lambdaRole: aws.iam.Role
 ) {
   const api = new aws.apigateway.RestApi("one-post-is-enough", {
     binaryMediaTypes: ["image/jpg", "image/jpeg"],
-  });
-
-  const lambdaRole = new aws.iam.Role("getUserPostRole", {
-    assumeRolePolicy: {
-      Version: "2012-10-17",
-      Statement: [
-        {
-          Action: "sts:AssumeRole",
-          Principal: {
-            Service: "lambda.amazonaws.com",
-          },
-          Effect: "Allow",
-        },
-      ],
-    },
-  });
-  new aws.iam.RolePolicyAttachment("getUserPostRolePolicy", {
-    role: lambdaRole.name,
-    policyArn: aws.iam.ManagedPolicies.AWSLambdaBasicExecutionRole,
-  });
-  new aws.iam.RolePolicyAttachment("getUserPostRolePolicyBis", {
-    role: lambdaRole.name,
-    policyArn: aws.iam.ManagedPolicies.AmazonS3FullAccess,
   });
 
   // put everything related to the api and pass this via triggers to deployment
