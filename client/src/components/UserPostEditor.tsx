@@ -69,7 +69,7 @@ const deleteUserPost = async () => {
   }
   const headers = new Headers();
   headers.append('Authorization', token);
-  const response = await fetch(config.apiEndpointUrl, {
+  const response = await fetch(config.apiEndpointUrl + '/user-post', {
     method: 'DELETE',
     headers,
   });

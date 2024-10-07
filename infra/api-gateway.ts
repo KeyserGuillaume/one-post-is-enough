@@ -2,6 +2,7 @@ import * as aws from "@pulumi/aws";
 import * as pulumi from "@pulumi/pulumi";
 import { getPostGetterHandler } from "./lambda-functions/get-user-post";
 import { getPostSetterHandler } from "./lambda-functions/post-uploader";
+import { getPostDeleterHandler } from "./lambda-functions/post-deleter";
 
 function createOptionsMethod(
   api: aws.apigateway.RestApi,
@@ -247,6 +248,59 @@ function createUserPostPostMethod(
   );
 }
 
+function createUserPostDeleteMethod(
+  api: aws.apigateway.RestApi,
+  apiUserPostResource: aws.apigateway.Resource,
+  apiDeploymentTriggers: pulumi.Input<string>[],
+  authorizer: aws.apigateway.Authorizer,
+  userPostsBucket: aws.s3.BucketV2,
+  lambdaRole: aws.iam.Role
+) {
+  const lambdaFunction = getPostDeleterHandler(userPostsBucket, lambdaRole);
+
+  const userPostDeleteMethod = new aws.apigateway.Method(
+    "userPostDeleteMethod",
+    {
+      restApi: api.id,
+      resourceId: apiUserPostResource.id,
+      httpMethod: "DELETE",
+      authorization: "COGNITO_USER_POOLS",
+      authorizerId: authorizer.id,
+    }
+  );
+  apiDeploymentTriggers.push(userPostDeleteMethod.id);
+
+  new aws.lambda.Permission("apiGatewayDeleteUserPostPermission", {
+    action: "lambda:InvokeFunction",
+    function: lambdaFunction.arn,
+    principal: "apigateway.amazonaws.com",
+    sourceArn: pulumi.interpolate`${api.executionArn}/*/*`,
+  });
+
+  apiDeploymentTriggers.push(
+    new aws.apigateway.Integration("userPostDeleteIntegration", {
+      httpMethod: userPostDeleteMethod.httpMethod,
+      integrationHttpMethod: "POST",
+      resourceId: apiUserPostResource.id,
+      restApi: api.id,
+      type: "AWS_PROXY",
+      uri: lambdaFunction.invokeArn,
+    }).id
+  );
+
+  apiDeploymentTriggers.push(
+    new aws.apigateway.MethodResponse("userPostDeleteResponse", {
+      restApi: api.id,
+      resourceId: apiUserPostResource.id,
+      httpMethod: userPostDeleteMethod.httpMethod,
+      statusCode: "200",
+      responseParameters: {
+        "method.response.header.Access-Control-Allow-Origin": true,
+      },
+    }).id
+  );
+}
+
 export function createApi(
   userPool: aws.cognito.UserPool,
   theOnePostBucket: aws.s3.BucketV2,
@@ -315,6 +369,14 @@ export function createApi(
     lambdaRole
   );
   createUserPostPostMethod(
+    api,
+    apiUserPostResource,
+    apiDeploymentTriggers,
+    authorizer,
+    userPostsBucket,
+    lambdaRole
+  );
+  createUserPostDeleteMethod(
     api,
     apiUserPostResource,
     apiDeploymentTriggers,
