@@ -10,4 +10,10 @@ An anti-social network
 
 Deployment is handled with [Pulumi](https://www.pulumi.com/)
 
-Front end client is [React](https://react.dev/)
+Front end client is coded with [React](https://react.dev/)
+
+Next steps:
+- include React-router
+- add post text introduction
+- implement moderation
+- improve performance
