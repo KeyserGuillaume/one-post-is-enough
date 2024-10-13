@@ -111,7 +111,17 @@ new aws.scheduler.Schedule("update-one-post-is-enough", {
   },
 });
 
-createApi(userPool, theOnePostBucket, userPostsBucket, lambdaRole);
+export const staticBucket = new aws.s3.BucketV2(
+  "one-post-is-enough-static-content"
+);
+
+export const apiEndpointUrl = createApi(
+  userPool,
+  theOnePostBucket,
+  userPostsBucket,
+  staticBucket,
+  lambdaRole
+);
 
 export const userPoolId = userPool.id;
 export const userPoolClientId = userPoolClient.id;

@@ -103,13 +103,17 @@ function createRootGetMethod(
     },
   });
 
-  const rootGetMethod = new aws.apigateway.Method("routeGetMethod", {
-    restApi: api.id,
-    resourceId: api.rootResourceId,
-    httpMethod: "GET",
-    authorization: "COGNITO_USER_POOLS",
-    authorizerId: authorizer.id,
-  });
+  const rootGetMethod = new aws.apigateway.Method(
+    "rootGetMethod",
+    {
+      restApi: api.id,
+      resourceId: api.rootResourceId,
+      httpMethod: "GET",
+      authorization: "COGNITO_USER_POOLS",
+      authorizerId: authorizer.id,
+    },
+    { aliases: [{ name: "routeGetMethod" }] }
+  );
   apiDeploymentTriggers.push(rootGetMethod.id);
 
   apiDeploymentTriggers.push(
@@ -301,14 +305,118 @@ function createUserPostDeleteMethod(
   );
 }
 
+function createStaticGetMethod(
+  api: aws.apigateway.RestApi,
+  apiDeploymentTriggers: pulumi.Input<string>[],
+  staticContentBucket: aws.s3.BucketV2,
+  apiStaticResource: aws.apigateway.Resource
+) {
+  const apiRoleReadOnly = new aws.iam.Role(
+    `one-post-is-enough-api-role-read-only`,
+    {
+      assumeRolePolicy: aws.iam.assumeRolePolicyForPrincipal({
+        Service: "apigateway.amazonaws.com",
+      }),
+    }
+  );
+  new aws.iam.RolePolicy(`one-post-is-enough-api-role-policy-read-only`, {
+    role: apiRoleReadOnly,
+    policy: {
+      Version: "2012-10-17",
+      Statement: [
+        {
+          Action: [
+            "s3:Get*",
+            "s3:List*",
+            "s3:Describe*",
+            "s3-object-lambda:Get*",
+            "s3-object-lambda:List*",
+          ],
+          Resource: [
+            pulumi.interpolate`${staticContentBucket.arn}`,
+            pulumi.interpolate`${staticContentBucket.arn}/*`,
+          ],
+          Effect: "Allow",
+        },
+      ],
+    },
+  });
+  const staticResource = new aws.apigateway.Resource("staticS3Proxy", {
+    restApi: api.id,
+    parentId: apiStaticResource.id,
+    pathPart: "{key}",
+  });
+  apiDeploymentTriggers.push(apiStaticResource.id);
+
+  const staticGetMethod = new aws.apigateway.Method("staticGetMethod", {
+    restApi: api.id,
+    resourceId: staticResource.id,
+    httpMethod: "GET",
+    authorization: "NONE",
+    requestParameters: {
+      "method.request.path.key": true,
+      "method.request.header.Accept": true,
+    },
+  });
+  apiDeploymentTriggers.push(staticGetMethod.id);
+
+  apiDeploymentTriggers.push(
+    new aws.apigateway.Integration("staticGetIntegration", {
+      httpMethod: staticGetMethod.httpMethod,
+      integrationHttpMethod: "GET",
+      resourceId: staticResource.id,
+      restApi: api.id,
+      type: "AWS",
+      credentials: apiRoleReadOnly.arn,
+      requestParameters: {
+        "integration.request.path.key": "method.request.path.key",
+        "integration.request.header.Accept": "method.request.header.Accept",
+      },
+      uri: pulumi.interpolate`arn:aws:apigateway:eu-west-3:s3:path/${staticContentBucket.bucket}/{key}`,
+      // uri: pulumi.interpolate`http://${staticContentBucket.bucket}.s3-website.eu-west-3.amazonaws.com/{key}`,
+    }).id
+  );
+
+  const staticGetResponse = new aws.apigateway.MethodResponse(
+    "staticGetResponse",
+    {
+      restApi: api.id,
+      resourceId: staticResource.id,
+      httpMethod: staticGetMethod.httpMethod,
+      statusCode: "200",
+      responseParameters: { "method.response.header.Content-Type": true },
+    }
+  );
+  apiDeploymentTriggers.push(staticGetResponse.id);
+
+  apiDeploymentTriggers.push(
+    new aws.apigateway.IntegrationResponse("staticGetIntegrationResponse", {
+      restApi: api.id,
+      resourceId: staticResource.id,
+      httpMethod: staticGetMethod.httpMethod,
+      statusCode: staticGetResponse.statusCode,
+      responseParameters: {
+        "method.response.header.Content-Type":
+          "integration.response.header.Content-Type",
+      },
+    }).id
+  );
+}
+
 export function createApi(
   userPool: aws.cognito.UserPool,
   theOnePostBucket: aws.s3.BucketV2,
   userPostsBucket: aws.s3.BucketV2,
+  staticContentBucket: aws.s3.BucketV2,
   lambdaRole: aws.iam.Role
 ) {
   const api = new aws.apigateway.RestApi("one-post-is-enough", {
-    binaryMediaTypes: ["image/jpg", "image/jpeg"],
+    binaryMediaTypes: [
+      "image/jpg",
+      "image/jpeg",
+      "application/xml",
+      "text.html",
+    ],
   });
 
   // put everything related to the api and pass this via triggers to deployment
@@ -363,6 +471,19 @@ export function createApi(
     lambdaRole
   );
 
+  const apiStaticResource = new aws.apigateway.Resource("static", {
+    restApi: api.id,
+    parentId: api.rootResourceId,
+    pathPart: "static",
+  });
+  apiDeploymentTriggers.push(apiStaticResource.id);
+  createStaticGetMethod(
+    api,
+    apiDeploymentTriggers,
+    staticContentBucket,
+    apiStaticResource
+  );
+
   const triggers: { [x: string]: pulumi.Input<string> } = {};
   apiDeploymentTriggers.forEach(
     (pulumiInput, index) => (triggers[index] = pulumiInput)
@@ -372,4 +493,6 @@ export function createApi(
     triggers,
     stageName: "client",
   });
+
+  return deployment.invokeUrl;
 }
