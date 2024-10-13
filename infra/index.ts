@@ -111,9 +111,8 @@ new aws.scheduler.Schedule("update-one-post-is-enough", {
   },
 });
 
-export const staticBucket = new aws.s3.BucketV2(
-  "one-post-is-enough-static-content"
-);
+const staticBucket = new aws.s3.BucketV2("one-post-is-enough-static-content");
+export const staticBucketName = staticBucket.bucket;
 
 export const apiEndpointUrl = createApi(
   userPool,

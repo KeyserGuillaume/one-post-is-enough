@@ -1,0 +1,10 @@
+name: client-infra
+runtime:
+  name: nodejs
+  options:
+    packagemanager: npm
+description: pulumi project to build and upload client files to aws
+config:
+  pulumi:tags:
+    value:
+      pulumi:template: aws-typescript

@@ -344,7 +344,7 @@ function createStaticGetMethod(
   const staticResource = new aws.apigateway.Resource("staticS3Proxy", {
     restApi: api.id,
     parentId: apiStaticResource.id,
-    pathPart: "{key}",
+    pathPart: "{key+}",
   });
   apiDeploymentTriggers.push(apiStaticResource.id);
 
