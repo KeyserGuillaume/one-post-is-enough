@@ -1,6 +1,6 @@
 type Props = {onResetSuccess: () => void};
 
-const ResetPasswordPage = ({onResetSuccess}: Props) => {
+const ResetPasswordPage = ({}: Props) => {
   return (
     <p className="text-wrap w-80 mt-2">
       {' '}
